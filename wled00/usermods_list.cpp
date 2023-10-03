@@ -23,6 +23,14 @@
 #include "../usermods/sht/usermod_sht.h"
 #endif
 
+#ifdef USERMOD_INA
+#include "../usermods/ina/usermod_ina.h"
+#endif
+
+#ifdef USERMOD_SENSORSTOINA
+#include "../usermods/INA_to_mqtt/usermod_v2_INAtoMQTT.h"
+#endif
+
 #ifdef USERMOD_SN_PHOTORESISTOR
 #include "../usermods/SN_Photoresistor/usermod_sn_photoresistor.h"
 #endif
@@ -379,6 +387,13 @@ void registerUsermods()
 
 #ifdef USERMOD_SHT
   usermods.add(new ShtUsermod("SHT-Sensor", false));
+#endif
+
+#ifdef USERMOD_INA
+  usermods.add(new InaUsermod("INA-Sensor", false));
+#endif
+#ifdef USERMOD_SENSORSTOINA
+  usermods.add(new UserMod_INAToMQTT("INA2-Sensor", false));
 #endif
 
 #ifdef USERMOD_MCUTEMP
