@@ -1,30 +1,30 @@
-# SHT
-Usermod to support various SHT i2c sensors like the SHT30, SHT31, SHT35 and SHT85
+# INA
+Usermod to support the INA260 sensor from ADAfruit
 
 ## Requirements
-* "SHT85" by Rob Tillaart, v0.2 or higher: https://github.com/RobTillaart/SHT85
+* "ADAFruint INA260: 	adafruit/Adafruit INA260 Library@^1.5.0
 
 ## Usermod installation
-Simply copy the below block (build task) to your `platformio_override.ini` and compile WLED using this new build task. Or use an existing one, add the buildflag `-D USERMOD_SHT` and the below library dependencies.
+Simply copy the below block (build task) to your `platformio_override.ini` and compile WLED using this new build task. Or use an existing one, add the buildflag `-D USERMOD_INA` and the below library dependencies.
 
 ESP32:
 ```
-[env:custom_esp32dev_usermod_sht]
+[env:custom_esp32dev_usermod_ina]
 extends = env:esp32dev
 build_flags = ${common.build_flags_esp32}
-  -D USERMOD_SHT
+  -D USERMOD_INA
 lib_deps = ${esp32.lib_deps}
-    robtillaart/SHT85@~0.3.3
+	adafruit/Adafruit INA260 Library@^1.5.0
 ```
 
 ESP8266:
 ```
-[env:custom_d1_mini_usermod_sht]
+[env:custom_d1_mini_usermod_ina]
 extends = env:d1_mini
 build_flags = ${common.build_flags_esp8266}
-  -D USERMOD_SHT
+  -D USERMOD_INA
 lib_deps = ${esp8266.lib_deps}
-    robtillaart/SHT85@~0.3.3
+	adafruit/Adafruit INA260 Library@^1.5.0
 ```
 
 ## MQTT Discovery for Home Assistant
@@ -34,23 +34,15 @@ If you're using Home Assistant and want to have the temperature and humidity ava
 Regardless of having MQTT discovery ticked or not, the mod will always report temperature and humidity to the WLED MQTT topic of that instance, if you have a broker configured and it's connected.
 
 ## Configuration
-Navigate to the "Config" and then to the "Usermods" section. If you compiled WLED with `-D USERMOD_SHT`, you will see the config for it there:
-* SHT-Type:
-  * What it does: Select the SHT sensor type you want to use
-  * Possible values: SHT30, SHT31, SHT35, SHT85
-  * Default: SHT30
-* Unit:
-  * What it does: Select which unit should be used to display the temperature in the info section. Also used when sending via MQTT discovery, see below.
-  * Possible values: Celsius, Fahrenheit
-  * Default: Celsius
+Navigate to the "Config" and then to the "Usermods" section. If you compiled WLED with `-D USERMOD_INA`, you will see the config for it there:
 * Add-To-HA-MQTT-Discovery:
   * What it does: Makes the temperature and humidity available via MQTT discovery, so they're automatically added to Home Assistant, because that way it's typesafe.
   * Possible values: Enabled/Disabled
   * Default: Disabled
 
 ## Change log
-2022-12
+2023-10
 * First implementation.
 
 ## Credits
-ezcGman | Andy: Find me on the Intermit.Tech (QuinLED) Discord server: https://discord.gg/WdbAauG
+Based off of SHT usermod, ezcGman | Andy
