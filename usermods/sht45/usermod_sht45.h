@@ -8,9 +8,6 @@
 #include "Adafruit_SHT4x.h"
 
 #define USERMOD_SHT_TYPE_SHT45 0
-// #define USERMOD_SHT_TYPE_SHT31 1
-// #define USERMOD_SHT_TYPE_SHT35 2
-// #define USERMOD_SHT_TYPE_SHT85 3
 
 class SHT45Usermod : public Usermod
 {
@@ -22,25 +19,19 @@ private:
   bool haMqttDiscovery = false;     // Is MQTT discovery enabled or not
   bool haMqttDiscoveryDone = false; // Remembers if we already published the HA discovery topics
 
-  // SHT vars
-  // SHT *shtTempHumidSensor = nullptr;    // Instance of SHT lib
   Adafruit_SHT4x sht4 = Adafruit_SHT4x(); // TEMPERATURE AND HUMIDITY sensor
-  byte shtType = 0;                       // SHT sensor type to be used. Default: SHT30
-  byte unitOfTemp = 0;                    // Temperature unit to be used. Default: Celsius (0 = Celsius, 1 = Fahrenheit)
-  bool shaInitDone = false;               // Remembers if SHT sensor has been initialised
-  bool shtReadDataSuccess = false;        // Did we have a successful data read and is a valid temperature and humidity available?
-  // const byte shtI2cAddress = 0x44;      // i2c address of the sensor. 0x44 is the default for all SHT sensors. Change this, if needed
+  // byte shtType = 0;                       // SHT sensor type to be used. Default: SHT30
+  byte unitOfTemp = 0;                  // Temperature unit to be used. Default: Celsius (0 = Celsius, 1 = Fahrenheit)
+  bool shtInitDone = false;             // Remembers if SHT sensor has been initialised
+  bool shtReadDataSuccess = false;      // Did we have a successful data read and is a valid temperature and humidity available?
   unsigned long shtLastTimeUpdated = 0; // Remembers when we read data the last time
   bool shtDataRequested = false;        // Reading data is done async. This remembers if we asked the sensor to read data
   float shtCurrentTempC = 0.0f;         // Last read temperature in Celsius
-  // float shtCurrentHumidity = 0.0f;      // Last read humidity in RH%
-
-  // float shtCurrentTemperature = 0.0f;
   float shtCurrentHumidity = 0.0f;
   void initSHTSensor();
   void cleanupSHTSensor();
   void cleanup();
-  inline bool isSHTReady() { return shaInitDone; } // Checks if the SHT sensor has been initialised.
+  inline bool isSHTReady() { return shtInitDone; } // Checks if the SHT sensor has been initialised.
 
   void publishTempAndHumidityViaMqtt();
   void publishHomeAssistantAutodiscovery();
@@ -51,7 +42,7 @@ public:
   // Strings to reduce flash memory usage (used more than twice)
   // static const char _name[]; //WLEDMM use public attribute of class UserMod
   // static const char _enabled[]; //WLEDMM not needed
-  static const char _shtType[];
+  // static const char _shtType[];
   static const char _unitOfTemp[];
   static const char _haMqttDiscovery[];
 
@@ -64,11 +55,6 @@ public:
   void addToJsonInfo(JsonObject &root);
 
   bool isEnabled() { return enabled; }
-
-  // float getTemperature();
-  // float getTemperatureC() { return roundf(shtCurrentTempC * 10.0f) / 10.0f; }
-  // float getTemperatureF() { return (getTemperatureC() * 1.8f) + 32.0f; }
-  // float getHumidity() { return roundf(shtCurrentHumidity * 10.0f) / 10.0f; }
 
   float getTemperature();
   float getTemperatureC() { return roundf(shtCurrentTempC * 10.0f) / 10.0f; }
@@ -83,7 +69,7 @@ public:
 // Strings to reduce flash memory usage (used more than twice)
 // const char SHT45Usermod::_name[]            PROGMEM = "SHT-Sensor"; //WLEDMM use public attribute of class UserMod
 // const char SHT45Usermod::_enabled[]         PROGMEM = "Enabled"; //WLEDMM not needed
-const char SHT45Usermod::_shtType[] PROGMEM = "SHT-Type";
+// const char SHT45Usermod::_shtType[] PROGMEM = "SHT-Type";
 const char SHT45Usermod::_unitOfTemp[] PROGMEM = "Unit";
 const char SHT45Usermod::_haMqttDiscovery[] PROGMEM = "Add-To-HA-MQTT-Discovery";
 
@@ -97,25 +83,7 @@ const char SHT45Usermod::_haMqttDiscovery[] PROGMEM = "Add-To-HA-MQTT-Discovery"
  */
 void SHT45Usermod::initSHTSensor()
 {
-  /*
-  switch (shtType) {
-    case USERMOD_SHT_TYPE_SHT30: shtTempHumidSensor = (SHT *) new SHT30(); break;
-    case USERMOD_SHT_TYPE_SHT31: shtTempHumidSensor = (SHT *) new SHT31(); break;
-    case USERMOD_SHT_TYPE_SHT35: shtTempHumidSensor = (SHT *) new SHT35(); break;
-    case USERMOD_SHT_TYPE_SHT85: shtTempHumidSensor = (SHT *) new SHT85(); break;
-  }
-#if 0
-  shtTempHumidSensor->begin(shtI2cAddress, i2c_sda, i2c_scl);
-#else
-  shtTempHumidSensor->begin((uint8_t)shtI2cAddress); // WLEDMM this connects to an existing Wire (I2C) object, instead starting a new driver
-#endif
 
-  if (shtTempHumidSensor->readStatus() == 0xFFFF) {
-    USER_PRINTF("[%s] SHT init failed, Sensor not found!\n", _name);
-    cleanup();
-    return;
-  }
-*/
   if (!sht4.begin())
   {
     Serial.println("Couldn't find SHT chip");
@@ -123,7 +91,7 @@ void SHT45Usermod::initSHTSensor()
       ;
   }
 
-  shaInitDone = true;
+  shtInitDone = true;
 }
 
 /**
@@ -137,11 +105,11 @@ void SHT45Usermod::cleanupSHTSensor()
 {
   if (isSHTReady())
   {
-    //  shtTempHumidSensor->reset();
-    // delete shtTempHumidSensor;
-    // shtTempHumidSensor = nullptr;
+    sht4.reset();
+    delete sht4;
+    Adafruit_SHT4x sht4 = Adafruit_SHT4x(); // TEMPERATURE AND HUMIDITY sensor
   }
-  shaInitDone = false;
+  shtInitDone = false;
 }
 
 /**
@@ -166,7 +134,7 @@ void SHT45Usermod::cleanup()
   }
 
   enabled = false;
-  shaInitDone = false; // WLEDMM bugfix
+  shtInitDone = false; // WLEDMM bugfix
 }
 
 /**
@@ -355,8 +323,6 @@ void SHT45Usermod::loop()
         // if (shtTempHumidSensor->readData(false))
         if (1 == 1)
         {
-          // shtCurrentTempC = shtTempHumidSensor->getTemperature();
-          // shtCurrentHumidity = shtTempHumidSensor->getHumidity();
           sensors_event_t humidity, temp;
 
           sht4.getEvent(&humidity, &temp); // populate temp and humidity objects with fresh data
@@ -406,15 +372,12 @@ void SHT45Usermod::onMqttConnect(bool sessionPresent)
  */
 void SHT45Usermod::appendConfigData()
 {
-  oappend(SET_F("dd=addDropdown('"));
-  oappend(_name);
-  oappend(SET_F("','"));
-  oappend(_shtType);
-  oappend(SET_F("');"));
-  oappend(SET_F("addOption(dd,'SHT45',0);"));
-  // oappend(SET_F("addOption(dd,'SHT31',1);"));
-  // oappend(SET_F("addOption(dd,'SHT35',2);"));
-  // oappend(SET_F("addOption(dd,'SHT85',3);"));
+  // oappend(SET_F("dd=addDropdown('"));
+  // oappend(_name);
+  // oappend(SET_F("','"));
+  // oappend(_shtType);
+  // oappend(SET_F("');"));
+  // oappend(SET_F("addOption(dd,'SHT45',0);"));
   oappend(SET_F("dd=addDropdown('"));
   oappend(_name);
   oappend(SET_F("','"));
@@ -464,12 +427,12 @@ bool SHT45Usermod::readFromConfig(JsonObject &root)
   }
 
   bool oldEnabled = enabled;
-  byte oldshtType = shtType;
+  // byte oldshtType = shtType;
   byte oldUnitOfTemp = unitOfTemp;
   bool oldHaMqttDiscovery = haMqttDiscovery;
 
   getJsonValue(top[F("enabled")], enabled);
-  getJsonValue(top[FPSTR(_shtType)], shtType);
+  // getJsonValue(top[FPSTR(_shtType)], shtType);
   getJsonValue(top[FPSTR(_unitOfTemp)], unitOfTemp);
   getJsonValue(top[FPSTR(_haMqttDiscovery)], haMqttDiscovery);
 
@@ -487,12 +450,13 @@ bool SHT45Usermod::readFromConfig(JsonObject &root)
   // Config has been changed, so adopt to changes
   else if (enabled)
   {
+    /*
     if (oldshtType != shtType)
     {
       cleanupSHTSensor();
       initSHTSensor();
     }
-
+*/
     if (oldUnitOfTemp != unitOfTemp)
     {
       publishTempAndHumidityViaMqtt();
@@ -556,7 +520,7 @@ void SHT45Usermod::addToJsonInfo(JsonObject &root)
   jsonTemperature.add(getUnitString());
 
   jsonHumidity.add(getHumidity());
-  jsonHumidity.add(F(" %RH1"));
+  jsonHumidity.add(F(" %RH"));
   // jsonHumidity.add(getUnitString());
   // jsonPower.add(getUnitString());
 
@@ -571,20 +535,20 @@ void SHT45Usermod::addToJsonInfo(JsonObject &root)
 
   jsonHumidity = sensor.createNestedArray(F("SHT45 Humidity"));
   jsonHumidity.add(getHumidity());
-  jsonHumidity.add(F(" %RH2"));
+  jsonHumidity.add(F(" %RH"));
 }
 
 /**
  * Getter for last read temperature for configured unit.
  *
  * @return float
-*/
+ */
 
 float SHT45Usermod::getTemperature()
 {
   return unitOfTemp ? getTemperatureF() : getTemperatureC();
 }
- 
+
 /**
  * Returns the current configured unit as human readable string.
  *
