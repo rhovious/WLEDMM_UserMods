@@ -23,6 +23,10 @@
 #include "../usermods/sht/usermod_sht.h"
 #endif
 
+#ifdef USERMOD_SHT45
+#include "../usermods/sht45/usermod_sht45.h"
+#endif
+
 #ifdef USERMOD_INA
 #include "../usermods/ina/usermod_ina.h"
 #endif
@@ -389,6 +393,9 @@ void registerUsermods()
   usermods.add(new ShtUsermod("SHT-Sensor", false));
 #endif
 
+#ifdef USERMOD_SHT45
+  usermods.add(new SHT45Usermod("SHT45-Sensor", false));
+#endif
 #ifdef USERMOD_INA
   usermods.add(new InaUsermod("INA-Sensor", false));
 #endif

@@ -5,14 +5,14 @@
 #pragma once
 
 // #include "SHT85.h"
-#include <Adafruit_INA260.h>
+#include "Adafruit_SHT4x.h"
 
-// #define USERMOD_SHT_TYPE_SHT30 0
-//  #define USERMOD_SHT_TYPE_SHT31 1
-//  #define USERMOD_SHT_TYPE_SHT35 2
-//  #define USERMOD_SHT_TYPE_SHT85 3
+#define USERMOD_SHT_TYPE_SHT45 0
+// #define USERMOD_SHT_TYPE_SHT31 1
+// #define USERMOD_SHT_TYPE_SHT35 2
+// #define USERMOD_SHT_TYPE_SHT85 3
 
-class InaUsermod : public Usermod
+class SHT45Usermod : public Usermod
 {
 private:
   // bool enabled = false; // Is usermod enabled or not //WLEDMM use public attribute of class UserMod
@@ -24,35 +24,34 @@ private:
 
   // SHT vars
   // SHT *shtTempHumidSensor = nullptr;    // Instance of SHT lib
-  Adafruit_INA260 ina260 = Adafruit_INA260();
-  // byte inaType = 0;                     // SHT sensor type to be used. Default: SHT30
-  // byte unitOfTemp = 0;                  // Temperature unit to be used. Default: Celsius (0 = Celsius, 1 = Fahrenheit)
-  bool inaInitDone = false;        // Remembers if SHT sensor has been initialised
-  bool inaReadDataSuccess = false; // Did we have a successful data read and is a valid temperature and humidity available?
+  Adafruit_SHT4x sht4 = Adafruit_SHT4x(); // TEMPERATURE AND HUMIDITY sensor
+  byte shtType = 0;                       // SHT sensor type to be used. Default: SHT30
+  byte unitOfTemp = 0;                    // Temperature unit to be used. Default: Celsius (0 = Celsius, 1 = Fahrenheit)
+  bool shaInitDone = false;               // Remembers if SHT sensor has been initialised
+  bool shtReadDataSuccess = false;        // Did we have a successful data read and is a valid temperature and humidity available?
   // const byte shtI2cAddress = 0x44;      // i2c address of the sensor. 0x44 is the default for all SHT sensors. Change this, if needed
   unsigned long shtLastTimeUpdated = 0; // Remembers when we read data the last time
-  bool inaDataRequested = false;        // Reading data is done async. This remembers if we asked the sensor to read data
-  // float shtCurrentTempC = 0.0f;         // Last read temperature in Celsius
+  bool shtDataRequested = false;        // Reading data is done async. This remembers if we asked the sensor to read data
+  float shtCurrentTempC = 0.0f;         // Last read temperature in Celsius
   // float shtCurrentHumidity = 0.0f;      // Last read humidity in RH%
 
-  float inaCurrentVoltage = 0.0f;
-  float inaCurrentCurrent = 0.0f;
-  float inaCurrentPower = 0.0f;
-  void initINAVoltageSensor();
-  void cleanupINASensor();
+  // float shtCurrentTemperature = 0.0f;
+  float shtCurrentHumidity = 0.0f;
+  void initSHTSensor();
+  void cleanupSHTSensor();
   void cleanup();
-  inline bool isINAReady() { return inaInitDone; } // Checks if the SHT sensor has been initialised.
+  inline bool isSHTReady() { return shaInitDone; } // Checks if the SHT sensor has been initialised.
 
-  void publishVoltageAndCurrentViaMqtt();
+  void publishTempAndHumidityViaMqtt();
   void publishHomeAssistantAutodiscovery();
   void appendDeviceToMqttDiscoveryMessage(JsonDocument &root);
 
 public:
-  InaUsermod(const char *name, bool enabled) : Usermod(name, enabled) {} // WLEDMM
+  SHT45Usermod(const char *name, bool enabled) : Usermod(name, enabled) {} // WLEDMM
   // Strings to reduce flash memory usage (used more than twice)
   // static const char _name[]; //WLEDMM use public attribute of class UserMod
   // static const char _enabled[]; //WLEDMM not needed
-  // static const char _inaType[];
+  static const char _shtType[];
   static const char _unitOfTemp[];
   static const char _haMqttDiscovery[];
 
@@ -71,21 +70,22 @@ public:
   // float getTemperatureF() { return (getTemperatureC() * 1.8f) + 32.0f; }
   // float getHumidity() { return roundf(shtCurrentHumidity * 10.0f) / 10.0f; }
 
-  float getVoltage() { return roundf(inaCurrentVoltage * 10.0f) / 10000.0f; }
-  float getCurrent() { return (-1 * roundf(inaCurrentCurrent * 10.0f) / 10000.0f); }
-  float getPower() { return roundf(inaCurrentPower * 10.0f) / 10000.0f; }
+  float getTemperature();
+  float getTemperatureC() { return roundf(shtCurrentTempC * 10.0f) / 10.0f; }
+  float getTemperatureF() { return (getTemperatureC() * 1.8f) + 32.0f; }
+  float getHumidity() { return roundf(shtCurrentHumidity * 10.0f) / 10.0f; }
 
   const char *getUnitString();
 
-  uint16_t getId() { return USERMOD_ID_INA; }
+  uint16_t getId() { return USERMOD_ID_SHT_2; }
 };
 
 // Strings to reduce flash memory usage (used more than twice)
-// const char InaUsermod::_name[]            PROGMEM = "SHT-Sensor"; //WLEDMM use public attribute of class UserMod
-// const char InaUsermod::_enabled[]         PROGMEM = "Enabled"; //WLEDMM not needed
-// const char InaUsermod::_inaType[] PROGMEM = "SHT-Type";
-// const char InaUsermod::_unitOfTemp[] PROGMEM = "Unit";
-const char InaUsermod::_haMqttDiscovery[] PROGMEM = "Add-To-HA-MQTT-Discovery";
+// const char SHT45Usermod::_name[]            PROGMEM = "SHT-Sensor"; //WLEDMM use public attribute of class UserMod
+// const char SHT45Usermod::_enabled[]         PROGMEM = "Enabled"; //WLEDMM not needed
+const char SHT45Usermod::_shtType[] PROGMEM = "SHT-Type";
+const char SHT45Usermod::_unitOfTemp[] PROGMEM = "Unit";
+const char SHT45Usermod::_haMqttDiscovery[] PROGMEM = "Add-To-HA-MQTT-Discovery";
 
 /**
  * Initialise SHT sensor.
@@ -95,10 +95,10 @@ const char InaUsermod::_haMqttDiscovery[] PROGMEM = "Add-To-HA-MQTT-Discovery";
  *
  * @return void
  */
-void InaUsermod::initINAVoltageSensor()
+void SHT45Usermod::initSHTSensor()
 {
   /*
-  switch (inaType) {
+  switch (shtType) {
     case USERMOD_SHT_TYPE_SHT30: shtTempHumidSensor = (SHT *) new SHT30(); break;
     case USERMOD_SHT_TYPE_SHT31: shtTempHumidSensor = (SHT *) new SHT31(); break;
     case USERMOD_SHT_TYPE_SHT35: shtTempHumidSensor = (SHT *) new SHT35(); break;
@@ -116,14 +116,14 @@ void InaUsermod::initINAVoltageSensor()
     return;
   }
 */
-  if (!ina260.begin())
+  if (!sht4.begin())
   {
-    Serial.println("Couldn't find INA260 chip");
+    Serial.println("Couldn't find SHT chip");
     while (1)
       ;
   }
 
-  inaInitDone = true;
+  shaInitDone = true;
 }
 
 /**
@@ -133,28 +133,28 @@ void InaUsermod::initINAVoltageSensor()
  *
  * @return void
  */
-void InaUsermod::cleanupINASensor()
+void SHT45Usermod::cleanupSHTSensor()
 {
-  if (isINAReady())
+  if (isSHTReady())
   {
     //  shtTempHumidSensor->reset();
     // delete shtTempHumidSensor;
     // shtTempHumidSensor = nullptr;
   }
-  inaInitDone = false;
+  shaInitDone = false;
 }
 
 /**
  * Cleanup the mod completely.
  *
- * Calls ::cleanupINASensor() to cleanup the SHT sensor and
+ * Calls ::cleanupSHTSensor() to cleanup the SHT sensor and
  * deallocates pins.
  *
  * @return void
  */
-void InaUsermod::cleanup()
+void SHT45Usermod::cleanup()
 {
-  cleanupINASensor();
+  cleanupSHTSensor();
 
   if (pinAllocDone)
   {
@@ -166,7 +166,7 @@ void InaUsermod::cleanup()
   }
 
   enabled = false;
-  inaInitDone = false; // WLEDMM bugfix
+  shaInitDone = false; // WLEDMM bugfix
 }
 
 /**
@@ -177,19 +177,18 @@ void InaUsermod::cleanup()
  *
  * @return void
  */
-void InaUsermod::publishVoltageAndCurrentViaMqtt()
+void SHT45Usermod::publishTempAndHumidityViaMqtt()
 {
 #ifdef WLED_ENABLE_MQTT
   if (!WLED_MQTT_CONNECTED)
     return;
   char buf[128];
 
-  snprintf_P(buf, 127, PSTR("%s/voltage"), mqttDeviceTopic);
-  mqtt->publish(buf, 0, false, String(getVoltage()).c_str());
-  snprintf_P(buf, 127, PSTR("%s/current"), mqttDeviceTopic);
-  mqtt->publish(buf, 0, false, String(getCurrent()).c_str());
-  snprintf_P(buf, 127, PSTR("%s/power"), mqttDeviceTopic);
-  mqtt->publish(buf, 0, false, String(getPower()).c_str());
+  snprintf_P(buf, 127, PSTR("%s/temperature"), mqttDeviceTopic);
+  mqtt->publish(buf, 0, false, String(getTemperature()).c_str());
+  snprintf_P(buf, 127, PSTR("%s/humidity"), mqttDeviceTopic);
+  mqtt->publish(buf, 0, false, String(getHumidity()).c_str());
+
 #endif
 }
 
@@ -202,7 +201,7 @@ void InaUsermod::publishVoltageAndCurrentViaMqtt()
  *
  * @return void
  */
-void InaUsermod::publishHomeAssistantAutodiscovery()
+void SHT45Usermod::publishHomeAssistantAutodiscovery()
 {
 #ifdef WLED_ENABLE_MQTT
   if (!WLED_MQTT_CONNECTED)
@@ -220,7 +219,7 @@ void InaUsermod::publishHomeAssistantAutodiscovery()
   json[F("stat_cla")] = F("measurement");
   snprintf_P(buf, 127, PSTR("%s-temperature"), escapedMac.c_str());
   json[F("uniq_id")] = buf;
-  // json[F("unit_of_meas")] = unitOfTemp ? F("°F") : F("°C");
+  json[F("unit_of_meas")] = unitOfTemp ? F("°F") : F("°C");
   appendDeviceToMqttDiscoveryMessage(json);
   payload_size = serializeJson(json, json_str);
   snprintf_P(buf, 127, PSTR("homeassistant/sensor/%s/%s-temperature/config"), escapedMac.c_str(), escapedMac.c_str());
@@ -252,7 +251,7 @@ void InaUsermod::publishHomeAssistantAutodiscovery()
  * @return void
  */
 #ifdef WLED_ENABLE_MQTT
-void InaUsermod::appendDeviceToMqttDiscoveryMessage(JsonDocument &root)
+void SHT45Usermod::appendDeviceToMqttDiscoveryMessage(JsonDocument &root)
 {
   JsonObject device = root.createNestedObject(F("dev"));
   device[F("ids")] = escapedMac.c_str();
@@ -267,14 +266,14 @@ void InaUsermod::appendDeviceToMqttDiscoveryMessage(JsonDocument &root)
  * Setup the mod.
  *
  * Allocates i2c pins as PinOwner::HW_I2C, so they can be allocated multiple times.
- * And calls ::initINAVoltageSensor() to initialise the sensor.
+ * And calls ::initSHTSensor() to initialise the sensor.
  *
  * @see Usermod::setup()
  * @see UsermodManager::setup()
  *
  * @return void
  */
-void InaUsermod::setup()
+void SHT45Usermod::setup()
 {
   if (enabled)
   {
@@ -295,7 +294,7 @@ void InaUsermod::setup()
     { // WLEDMM - this allocates global I2C pins, then starts Wire - if not started previously
       pinAllocDone = true;
 
-      initINAVoltageSensor();
+      initSHTSensor();
 
       initDone = true;
     }
@@ -308,13 +307,13 @@ void InaUsermod::setup()
 
   firstRunDone = true;
 
-  if (enabled && initDone && pinAllocDone && isINAReady())
+  if (enabled && initDone && pinAllocDone && isSHTReady())
   {
-    USER_PRINTF(PSTR("[%s] INA sensor ready.\n"), _name);
+    USER_PRINTF(PSTR("[%s] SHT sensor ready.\n"), _name);
   }
   else
   {
-    USER_PRINTF(PSTR("[%s] INA sensor not ready.\n"), _name);
+    USER_PRINTF(PSTR("[%s] SHT sensor not ready.\n"), _name);
   }
 }
 
@@ -331,24 +330,24 @@ void InaUsermod::setup()
  *
  * @return void
  */
-void InaUsermod::loop()
+void SHT45Usermod::loop()
 {
   unsigned long last_runtime = 0; // WLEDMM ensure that strip.isUpdating() will not block longer that 1000ms
   if (!enabled || !initDone || !pinAllocDone || (strip.isUpdating() && (millis() - last_runtime < 1000)))
     return; // WLEDMM be nice, but not too nice
   last_runtime = millis();
 
-  if (isINAReady())
+  if (isSHTReady())
   {
-    if (millis() - shtLastTimeUpdated > 30000 && !inaDataRequested)
+    if (millis() - shtLastTimeUpdated > 30000 && !shtDataRequested)
     {
       // ina260->requestData();
-      inaDataRequested = true;
+      shtDataRequested = true;
 
       shtLastTimeUpdated = millis();
     }
 
-    if (inaDataRequested)
+    if (shtDataRequested)
     {
       // if (ina260->dataReady())
       if (1 == 1)
@@ -358,20 +357,22 @@ void InaUsermod::loop()
         {
           // shtCurrentTempC = shtTempHumidSensor->getTemperature();
           // shtCurrentHumidity = shtTempHumidSensor->getHumidity();
+          sensors_event_t humidity, temp;
 
-          inaCurrentVoltage = ina260.readBusVoltage();
-          inaCurrentCurrent = ina260.readCurrent();
-          inaCurrentPower = ina260.readPower();
+          sht4.getEvent(&humidity, &temp); // populate temp and humidity objects with fresh data
 
-          publishVoltageAndCurrentViaMqtt();
-          inaReadDataSuccess = true;
+          shtCurrentTempC = temp.temperature;
+          shtCurrentHumidity = humidity.relative_humidity;
+
+          publishTempAndHumidityViaMqtt();
+          shtReadDataSuccess = true;
         }
         else
         {
-          inaReadDataSuccess = false;
+          shtReadDataSuccess = false;
         }
 
-        inaDataRequested = false;
+        shtDataRequested = false;
       }
     }
   }
@@ -387,7 +388,7 @@ void InaUsermod::loop()
  *
  * @return void
  */
-void InaUsermod::onMqttConnect(bool sessionPresent)
+void SHT45Usermod::onMqttConnect(bool sessionPresent)
 {
 #ifdef WLED_ENABLE_MQTT
   if (haMqttDiscovery && !haMqttDiscoveryDone)
@@ -403,24 +404,24 @@ void InaUsermod::onMqttConnect(bool sessionPresent)
  *
  * @return void
  */
-void InaUsermod::appendConfigData()
+void SHT45Usermod::appendConfigData()
 {
   oappend(SET_F("dd=addDropdown('"));
   oappend(_name);
   oappend(SET_F("','"));
-  // oappend(_inaType);
-  // oappend(SET_F("');"));
-  // oappend(SET_F("addOption(dd,'SHT30',0);"));
-  //  oappend(SET_F("addOption(dd,'SHT31',1);"));
-  //  oappend(SET_F("addOption(dd,'SHT35',2);"));
-  //  oappend(SET_F("addOption(dd,'SHT85',3);"));
-  // oappend(SET_F("dd=addDropdown('"));
-  // oappend(_name);
-  // oappend(SET_F("','"));
-  // oappend(_unitOfTemp);
-  // oappend(SET_F("');"));
-  // oappend(SET_F("addOption(dd,'Celsius',0);"));
-  // oappend(SET_F("addOption(dd,'Fahrenheit',1);"));
+  oappend(_shtType);
+  oappend(SET_F("');"));
+  oappend(SET_F("addOption(dd,'SHT45',0);"));
+  // oappend(SET_F("addOption(dd,'SHT31',1);"));
+  // oappend(SET_F("addOption(dd,'SHT35',2);"));
+  // oappend(SET_F("addOption(dd,'SHT85',3);"));
+  oappend(SET_F("dd=addDropdown('"));
+  oappend(_name);
+  oappend(SET_F("','"));
+  oappend(_unitOfTemp);
+  oappend(SET_F("');"));
+  oappend(SET_F("addOption(dd,'Celsius',0);"));
+  oappend(SET_F("addOption(dd,'Fahrenheit',1);"));
 }
 
 /**
@@ -431,13 +432,13 @@ void InaUsermod::appendConfigData()
  *
  * @return void
  */
-void InaUsermod::addToConfig(JsonObject &root)
+void SHT45Usermod::addToConfig(JsonObject &root)
 {
   JsonObject top = root.createNestedObject(FPSTR(_name)); // usermodname
 
   top[F("enabled")] = enabled;
-  // top[FPSTR(_inaType)] = inaType;
-  // top[FPSTR(_unitOfTemp)] = unitOfTemp;
+  top[FPSTR(_shtType)] = shtType;
+  top[FPSTR(_unitOfTemp)] = unitOfTemp;
   top[FPSTR(_haMqttDiscovery)] = haMqttDiscovery;
 }
 
@@ -453,7 +454,7 @@ void InaUsermod::addToConfig(JsonObject &root)
  *
  * @return bool
  */
-bool InaUsermod::readFromConfig(JsonObject &root)
+bool SHT45Usermod::readFromConfig(JsonObject &root)
 {
   JsonObject top = root[FPSTR(_name)];
   if (top.isNull())
@@ -463,13 +464,13 @@ bool InaUsermod::readFromConfig(JsonObject &root)
   }
 
   bool oldEnabled = enabled;
-  // byte oldinaType = inaType;
-  // byte oldUnitOfTemp = unitOfTemp;
+  byte oldshtType = shtType;
+  byte oldUnitOfTemp = unitOfTemp;
   bool oldHaMqttDiscovery = haMqttDiscovery;
 
   getJsonValue(top[F("enabled")], enabled);
-  // getJsonValue(top[FPSTR(_inaType)], inaType);
-  // getJsonValue(top[FPSTR(_unitOfTemp)], unitOfTemp);
+  getJsonValue(top[FPSTR(_shtType)], shtType);
+  getJsonValue(top[FPSTR(_unitOfTemp)], unitOfTemp);
   getJsonValue(top[FPSTR(_haMqttDiscovery)], haMqttDiscovery);
 
   // First run: reading from cfg.json, nothing to do here, will be all done in setup()
@@ -486,18 +487,17 @@ bool InaUsermod::readFromConfig(JsonObject &root)
   // Config has been changed, so adopt to changes
   else if (enabled)
   {
-    /*
-    if (oldinaType != inaType)
+    if (oldshtType != shtType)
     {
-      cleanupINASensor();
-      initINAVoltageSensor();
+      cleanupSHTSensor();
+      initSHTSensor();
     }
 
     if (oldUnitOfTemp != unitOfTemp)
     {
-      publishVoltageAndCurrentViaMqtt();
+      publishTempAndHumidityViaMqtt();
       publishHomeAssistantAutodiscovery();
-    }*/
+    }
 
     if (oldHaMqttDiscovery != haMqttDiscovery && haMqttDiscovery)
     {
@@ -520,9 +520,9 @@ bool InaUsermod::readFromConfig(JsonObject &root)
  *
  * @return void
  */
-void InaUsermod::addToJsonInfo(JsonObject &root)
+void SHT45Usermod::addToJsonInfo(JsonObject &root)
 {
-  if (!enabled && !isINAReady())
+  if (!enabled && !isSHTReady())
   {
     return;
   }
@@ -531,39 +531,33 @@ void InaUsermod::addToJsonInfo(JsonObject &root)
   if (user.isNull())
     user = root.createNestedObject("u");
 
-  JsonArray jsonVoltage = user.createNestedArray(F("Voltage"));
-  JsonArray jsonCurrent = user.createNestedArray(F("Current"));
-  JsonArray jsonPower = user.createNestedArray(F("Power"));
-  if (shtLastTimeUpdated == 0 || !inaReadDataSuccess)
+  JsonArray jsonTemperature = user.createNestedArray(F("SHT45 Temperature"));
+  JsonArray jsonHumidity = user.createNestedArray(F("SHT45 Humidity"));
+
+  if (shtLastTimeUpdated == 0 || !shtReadDataSuccess)
   {
-    jsonVoltage.add(0);
-    jsonCurrent.add(0);
-    jsonPower.add(0);
+    jsonTemperature.add(0);
+    jsonHumidity.add(0);
 
     if (shtLastTimeUpdated == 0)
     {
-      jsonVoltage.add(F(" Not read yet"));
-      jsonCurrent.add(F(" Not read yet"));
-      jsonPower.add(F(" Not read yet"));
+      jsonTemperature.add(F(" Not read yet"));
+      jsonHumidity.add(F(" Not read yet"));
     }
     else
     {
-      jsonVoltage.add(F(" Error"));
-      jsonCurrent.add(F(" Error"));
-      jsonPower.add(F(" Error"));
+      jsonTemperature.add(F(" Error"));
+      jsonHumidity.add(F(" Error"));
     }
     return;
   }
 
-  jsonVoltage.add(getVoltage());
-  jsonVoltage.add(F(" V"));
+  jsonTemperature.add(getTemperature());
+  jsonTemperature.add(getUnitString());
 
-  jsonCurrent.add(getCurrent());
-  jsonCurrent.add(F(" A"));
-  // jsonCurrent.add(getUnitString());
-
-  jsonPower.add(getPower());
-  jsonPower.add(F(" W"));
+  jsonHumidity.add(getHumidity());
+  jsonHumidity.add(F(" %RH1"));
+  // jsonHumidity.add(getUnitString());
   // jsonPower.add(getUnitString());
 
   // sensor object
@@ -571,37 +565,32 @@ void InaUsermod::addToJsonInfo(JsonObject &root)
   if (sensor.isNull())
     sensor = root.createNestedObject(F("sensor"));
 
-  jsonVoltage = sensor.createNestedArray(F("Voltage"));
-  jsonVoltage.add(getVoltage());
-  jsonVoltage.add(F(" V"));
-  // jsonVoltage.add(getUnitString());
+  jsonTemperature = sensor.createNestedArray(F("SHT45 Temperature"));
+  jsonTemperature.add(getTemperature());
+  jsonTemperature.add(getUnitString());
 
-  jsonCurrent = sensor.createNestedArray(F("Current"));
-  jsonCurrent.add(getCurrent());
-  jsonCurrent.add(F(" A"));
-
-  jsonPower = sensor.createNestedArray(F("Power"));
-  jsonPower.add(getPower());
-  jsonPower.add(F(" W"));
+  jsonHumidity = sensor.createNestedArray(F("SHT45 Humidity"));
+  jsonHumidity.add(getHumidity());
+  jsonHumidity.add(F(" %RH2"));
 }
 
 /**
- * Getter for last read   for configured unit.
+ * Getter for last read temperature for configured unit.
  *
  * @return float
+*/
 
-
-float InaUsermod::getTemperature()
+float SHT45Usermod::getTemperature()
 {
   return unitOfTemp ? getTemperatureF() : getTemperatureC();
 }
- */
+ 
 /**
  * Returns the current configured unit as human readable string.
  *
  * @return const char*
  */
-// const char *InaUsermod::getUnitString()
-//{
-//   return unitOfTemp ? "°F" : "°C";
-// }
+const char *SHT45Usermod::getUnitString()
+{
+  return unitOfTemp ? "°F" : "°C";
+}
