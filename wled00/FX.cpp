@@ -73,6 +73,12 @@ static int8_t tristate_square8(uint8_t x, uint8_t pulsewidth, uint8_t attdec) {
   return 0;
 }
 
+// float version of map()  // WLEDMM moved here so its available for all effects
+static float mapf(float x, float in_min, float in_max, float out_min, float out_max){
+  if (in_max == in_min) return (out_min);  // WLEDMM avoid div/0
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 // effect functions
 
 /*
@@ -80,7 +86,7 @@ static int8_t tristate_square8(uint8_t x, uint8_t pulsewidth, uint8_t attdec) {
  */
 uint16_t mode_static(void) {
   SEGMENT.fill(SEGCOLOR(0));
-  return 350;
+  return FRAMETIME_FIXED_SLOW;    // WLEDMM to ensure smooth color changes from DMX (PR #73)
 }
 static const char _data_FX_MODE_STATIC[] PROGMEM = "Solid";
 
@@ -1916,6 +1922,71 @@ uint16_t mode_pride_2015(void) {
 static const char _data_FX_MODE_PRIDE_2015[] PROGMEM = "Pride 2015@!;;";
 
 
+//////////////////////
+//       PARTYJERK        //
+//////////////////////
+// by  @tonyxforce
+// NB: This effects expects a palette that starts with black and then ramps up brightness. 
+//     Currently works best with the "color gradient" and the "colors 1&2" palettes
+uint16_t mode_partyjerk() {
+  if (SEGENV.call == 0) {
+    SEGMENT.fill(BLACK);    // clear LEDs
+    SEGENV.aux0 = 0;
+    SEGENV.aux1 = 0;
+    SEGENV.step = 0;
+  }
+  /*
+  * use of persistent variables:
+  * aux0: hueDelay
+  * aux1: hue
+  * step: pos
+  */
+
+  um_data_t *um_data;
+  if (!usermods.getUMData(&um_data, USERMOD_ID_AUDIOREACTIVE)) {
+    // add support for no audio
+    um_data = simulateSound(SEGMENT.soundSim);
+  }
+  float   volumeSmth = *(float*)  um_data->u_data[0];
+
+  SEGENV.aux0++;
+  if (SEGENV.aux1 > 254) {
+    SEGENV.aux1 = 0;
+  }
+  if (SEGENV.aux0 > map(SEGMENT.custom1, 0, 255, 0, 14)) {
+    SEGENV.aux0 = 0;
+    SEGENV.aux1++;
+  }
+
+  uint_fast32_t speed = 0;
+  uint16_t counter = 0;
+
+  if (volumeSmth * 2 > (255 - SEGMENT.intensity)) {
+    speed = SEGMENT.speed * map(SEGMENT.custom2, 0, 255, 0, 100);
+  } else {
+    speed = SEGMENT.speed;
+  };
+
+  SEGENV.step += speed;
+  counter = SEGENV.step >> 8;
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    uint8_t colorIndex = ((i * 255) / SEGLEN) - counter;
+    uint32_t paletteColor = SEGMENT.color_from_palette(colorIndex, false, PALETTE_MOVING_WRAP, 255);
+    uint8_t r = R(paletteColor);
+    uint8_t g = G(paletteColor);
+    uint8_t b = B(paletteColor);
+    uint8_t activeColor = max(r, max(g, b));
+
+    CRGB rgb(CHSV(SEGENV.aux1, 255, activeColor));
+    SEGMENT.setPixelColor((uint16_t)i, rgb.r, rgb.g, rgb.b);
+  };
+
+  return FRAMETIME;
+} // mode_partyjerk()
+static const char _data_FX_MODE_PARTYJERK[] PROGMEM = "Party jerk@Effect speed,Sensitivity,Color change speed,Effect speed active multiplier;!,!;!;1v;c1=8,c2=48,m12=0,si=0";
+
+
 //eight colored dots, weaving in and out of sync with each other
 uint16_t mode_juggle(void) {
   if (SEGLEN == 1) return mode_static();
@@ -2300,33 +2371,35 @@ uint16_t mode_meteor() {
 
   byte* trail = SEGENV.data;
 
-  byte meteorSize= 1+ SEGLEN / 10;
+  const unsigned meteorSize= 1 + SEGLEN / 20; // 5%
   uint16_t counter = strip.now * ((SEGMENT.speed >> 2) +8);
   uint16_t in = counter * SEGLEN >> 16;
 
+  const int max = SEGMENT.palette==5 || !SEGMENT.check1 ? 240 : 255;
   // fade all leds to colors[1] in LEDs one step
   for (int i = 0; i < SEGLEN; i++) {
-    if (random8() <= 255 - SEGMENT.intensity)
-    {
-      byte meteorTrailDecay = 128 + random8(127);
+    if (random8() <= 255 - SEGMENT.intensity) {
+      byte meteorTrailDecay = 162 + random8(92);
       trail[i] = scale8(trail[i], meteorTrailDecay);
-      SEGMENT.setPixelColor(i, color_blend(SEGCOLOR(1), SEGMENT.color_from_palette(i, true, false, 0), trail[i]));
+      uint32_t col = SEGMENT.check1 ? SEGMENT.color_from_palette(i, true, false, 0, trail[i]) : SEGMENT.color_from_palette(trail[i], false, true, 255);
+      SEGMENT.setPixelColor(i, col);
     }
   }
 
   // draw meteor
-  for (int j = 0; j < meteorSize; j++) {
+  for (unsigned j = 0; j < meteorSize; j++) {
     uint16_t index = in + j;
     if (index >= SEGLEN) {
       index -= SEGLEN;
     }
-    trail[index] = 240;
-    SEGMENT.setPixelColor(index, SEGMENT.color_from_palette(index, true, false, 0));
+    trail[index] = max;
+    uint32_t col = SEGMENT.check1 ? SEGMENT.color_from_palette(index, true, false, 0, trail[index]) : SEGMENT.color_from_palette(trail[index], false, true, 255);
+    SEGMENT.setPixelColor(index, col);
   }
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_METEOR[] PROGMEM = "Meteor@!,Trail length;!,!;!;1";
+static const char _data_FX_MODE_METEOR[] PROGMEM = "Meteor@!,Trail,,,,Gradient;;!;1";
 
 
 // smooth meteor effect
@@ -2338,35 +2411,35 @@ uint16_t mode_meteor_smooth() {
 
   byte* trail = SEGENV.data;
 
-  byte meteorSize= 1+ SEGLEN / 10;
+  const unsigned meteorSize= 1+ SEGLEN / 20; // 5%
   uint16_t in = map((SEGENV.step >> 6 & 0xFF), 0, 255, 0, SEGLEN -1);
 
+  const int max = SEGMENT.palette==5 || !SEGMENT.check1 ? 240 : 255;
   // fade all leds to colors[1] in LEDs one step
   for (int i = 0; i < SEGLEN; i++) {
-    if (trail[i] != 0 && random8() <= 255 - SEGMENT.intensity)
-    {
-      int change = 3 - random8(12); //change each time between -8 and +3
-      trail[i] += change;
-      if (trail[i] > 245) trail[i] = 0;
-      if (trail[i] > 240) trail[i] = 240;
-      SEGMENT.setPixelColor(i, color_blend(SEGCOLOR(1), SEGMENT.color_from_palette(i, true, false, 0), trail[i]));
+    if (/*trail[i] != 0 &&*/ random8() <= 255 - SEGMENT.intensity) {
+      int change = trail[i] + 4 - random8(24); //change each time between -20 and +4
+      trail[i] = constrain(change, 0, max);
+      uint32_t col = SEGMENT.check1 ? SEGMENT.color_from_palette(i, true, false, 0, trail[i]) : SEGMENT.color_from_palette(trail[i], false, true, 255);
+      SEGMENT.setPixelColor(i, col);
     }
   }
 
   // draw meteor
-  for (int j = 0; j < meteorSize; j++) {
+  for (unsigned j = 0; j < meteorSize; j++) {
     uint16_t index = in + j;
     if (index >= SEGLEN) {
       index -= SEGLEN;
     }
-    trail[index] = 240;
-    SEGMENT.setPixelColor(index, SEGMENT.color_from_palette(index, true, false, 0));
+    trail[index] = max;
+    uint32_t col = SEGMENT.check1 ? SEGMENT.color_from_palette(index, true, false, 0, trail[index]) : SEGMENT.color_from_palette(trail[index], false, true, 255);
+    SEGMENT.setPixelColor(index, col);
   }
 
   SEGENV.step += SEGMENT.speed +1;
   return FRAMETIME;
 }
-static const char _data_FX_MODE_METEOR_SMOOTH[] PROGMEM = "Meteor Smooth@!,Trail length;!,!;!;1";
+static const char _data_FX_MODE_METEOR_SMOOTH[] PROGMEM = "Meteor Smooth@!,Trail,,,,Gradient;;!;1";
 
 
 //Railway Crossing / Christmas Fairy lights
@@ -2637,14 +2710,14 @@ uint16_t mode_twinklefox()
 {
   return twinklefox_base(false);
 }
-static const char _data_FX_MODE_TWINKLEFOX[] PROGMEM = "Twinklefox@!,Twinkle rate;;!";
+static const char _data_FX_MODE_TWINKLEFOX[] PROGMEM = "Twinklefox@!,Twinkle rate;!,!;!";
 
 
 uint16_t mode_twinklecat()
 {
   return twinklefox_base(true);
 }
-static const char _data_FX_MODE_TWINKLECAT[] PROGMEM = "Twinklecat@!,Twinkle rate;;!";
+static const char _data_FX_MODE_TWINKLECAT[] PROGMEM = "Twinklecat@!,Twinkle rate;!,!;!";
 
 
 //inspired by https://www.tweaking4all.com/hardware/arduino/adruino-led-strip-effects/#LEDStripEffectBlinkingHalloweenEyes
@@ -5474,15 +5547,14 @@ uint16_t mode_2DPolarLights(void) {        // By: Kostyantyn Matviyevskyy  https
   const uint16_t cols = SEGMENT.virtualWidth();
   const uint16_t rows = SEGMENT.virtualHeight();
 
-  CRGBPalette16 auroraPalette  = {0x000000, 0x003300, 0x006600, 0x009900, 0x00cc00, 0x00ff00, 0x33ff00, 0x66ff00, 0x99ff00, 0xccff00, 0xffff00, 0xffcc00, 0xff9900, 0xff6600, 0xff3300, 0xff0000};
+  const CRGBPalette16 auroraPalette  = {0x000000, 0x003300, 0x006600, 0x009900, 0x00cc00, 0x00ff00, 0x33ff00, 0x66ff00, 0x99ff00, 0xccff00, 0xffff00, 0xffcc00, 0xff9900, 0xff6600, 0xff3300, 0xff0000};
 
   if (SEGENV.call == 0) {
     SEGMENT.setUpLeds();
     SEGMENT.fill(BLACK);
-    SEGENV.step = 0;
   }
 
-  float adjustHeight = (float)map(rows, 8, 32, 28, 12); // maybe use mapf() ???
+  float adjustHeight = mapf(rows, 8, 32, 28, 12); // maybe use mapf() ??? // WLEDMM yes!
   uint16_t adjScale = map(cols, 8, 64, 310, 63);
 /*
   if (SEGENV.aux1 != SEGMENT.custom1/12) {   // Hacky palette rotation. We need that black.
@@ -5502,19 +5574,36 @@ uint16_t mode_2DPolarLights(void) {        // By: Kostyantyn Matviyevskyy  https
   uint16_t _scale = map(SEGMENT.intensity, 0, 255, 30, adjScale);
   byte _speed = map(SEGMENT.speed, 0, 255, 128, 16);
 
-  for (int x = 0; x < cols; x++) {
-    for (int y = 0; y < rows; y++) {
-      SEGENV.step++;
-      SEGMENT.setPixelColorXY(x, y, ColorFromPalette(auroraPalette,
-                                      qsub8(
-                                        inoise8((SEGENV.step%2) + x * _scale, y * 16 + SEGENV.step % 16, SEGENV.step / _speed),
-                                        fabsf((float)rows / 2.0f - (float)y) * adjustHeight)));
+  //WLEDMM add SuperSync control
+  uint16_t xStart, xEnd, yStart, yEnd;
+  if (SEGMENT.check1) { //Master (sync on needs to show the whole effect, children only their first panel)
+    xStart = strip.panel[0].xOffset;
+    xEnd = strip.panel[0].xOffset + strip.panel[0].width;
+    yStart = strip.panel[0].yOffset;
+    yEnd = strip.panel[0].yOffset + strip.panel[0].height;
+  }
+  else  {
+    xStart = 0;
+    xEnd = cols;
+    yStart = 0;
+    yEnd = rows;
+  }
+
+  SEGENV.step = (strip.now * (cols * rows)) / 25; // baseline 40fps
+  const float rows_2 = (float)rows / 2.0f;        // WLEDMM faster to pre-calculate this
+  for (int x = xStart; x < xEnd; x++) {
+    for (int y = yStart; y < yEnd; y++) {
+    SEGENV.step++;
+    SEGMENT.setPixelColorXY(x, y, ColorFromPalette(auroraPalette,
+                                    qsub8(
+                                      inoise8((SEGENV.step%2) + x * _scale, y * 16 + SEGENV.step % 16, SEGENV.step / _speed),
+                                      fabsf(rows_2 - (float)y) * adjustHeight)));  // WLEDMM
     }
   }
 
   return FRAMETIME;
 } // mode_2DPolarLights()
-static const char _data_FX_MODE_2DPOLARLIGHTS[] PROGMEM = "Polar Lights@!,Scale;;;2";
+static const char _data_FX_MODE_2DPOLARLIGHTS[] PROGMEM = "Polar Lights@!,Scale,,,,SuperSync;;;2";
 
 
 /////////////////////////
@@ -5771,7 +5860,8 @@ uint16_t mode_2Dcrazybees(void) {
     uint8_t posX, posY, aimX, aimY, hue;
     int8_t deltaX, deltaY, signX, signY, error;
     void aimed(uint16_t w, uint16_t h) {
-      //WLEDMM seed NOT here for SuperSync
+      if (!true) //WLEDMM SuperSync
+        random16_set_seed(strip.now);
       aimX = random8(0, w);
       aimY = random8(0, h);
       hue = random8();
@@ -5787,7 +5877,8 @@ uint16_t mode_2Dcrazybees(void) {
   bee_t *bee = reinterpret_cast<bee_t*>(SEGENV.data);
 
   if (SEGENV.call == 0) {
-    random16_set_seed(strip.now); //WLEDMM seed here for SuperSync
+    if (true) //WLEDMM SuperSync
+      random16_set_seed(strip.now);
     SEGMENT.setUpLeds();
     SEGMENT.fill(BLACK);
     for (size_t i = 0; i < n; i++) {
@@ -6047,9 +6138,10 @@ uint16_t mode_2Dscrollingtext(void) {
   char text[33] = {'\0'};
   unsigned maxLen = (SEGMENT.name) ? min(32, (int)strlen(SEGMENT.name)) : 0;  // WLEDMM make it robust against too long segment names
   if (SEGMENT.name) for (size_t i=0,j=0; i<maxLen; i++) if (SEGMENT.name[i]>31 && SEGMENT.name[i]<128) text[j++] = SEGMENT.name[i];
+  const bool zero = strchr(text, '0') != nullptr;
 
-  if (!strlen(text) || !strncmp_P(text,PSTR("#F"),2) || !strncmp_P(text,PSTR("#P"),2) || !strncmp_P(text,PSTR("#DATE"),5) || !strncmp_P(text,PSTR("#DDMM"),5) || !strncmp_P(text,PSTR("#MMDD"),5) || !strncmp_P(text,PSTR("#TIME"),5) || !strncmp_P(text,PSTR("#HHMM"),5)) { // fallback if empty segment name: display date and time
-    char sec[5];
+  if (!strlen(text) || !strncmp_P(text,PSTR("#F"),2) || !strncmp_P(text,PSTR("#P"),2) || !strncmp_P(text,PSTR("#DATE"),5) || !strncmp_P(text,PSTR("#DDMM"),5) || !strncmp_P(text,PSTR("#MMDD"),5) || !strncmp_P(text,PSTR("#TIME"),5) || !strncmp_P(text,PSTR("#HH"),3) || !strncmp_P(text,PSTR("#MM"),3)) { // fallback if empty segment name: display date and time
+    char sec[5]= {'\0'};
     byte AmPmHour = hour(localTime);
     boolean isitAM = true;
     if (useAMPM) {
@@ -6058,14 +6150,16 @@ uint16_t mode_2Dscrollingtext(void) {
     }
     if (useAMPM) sprintf_P(sec, PSTR(" %2s"), (isitAM ? "AM" : "PM"));
     else         sprintf_P(sec, PSTR(":%02d"), second(localTime));
-    if      (!strncmp_P(text,PSTR("#DATE"),5)) sprintf_P(text, PSTR("%d.%d.%d"), day(localTime), month(localTime), year(localTime));
-    else if (!strncmp_P(text,PSTR("#DDMM"),5)) sprintf_P(text, PSTR("%d.%d"), day(localTime), month(localTime));
-    else if (!strncmp_P(text,PSTR("#MMDD"),5)) sprintf_P(text, PSTR("%d/%d"), month(localTime), day(localTime));
-    else if (!strncmp_P(text,PSTR("#TIME"),5)) sprintf_P(text, PSTR("%2d:%02d%s"), AmPmHour, minute(localTime), sec);
-    else if (!strncmp_P(text,PSTR("#HHMM"),5)) sprintf_P(text, PSTR("%2d:%02d"), AmPmHour, minute(localTime));
+    if      (!strncmp_P(text,PSTR("#DATE"),5)) sprintf_P(text, zero?PSTR("%02d.%02d.%04d"):PSTR("%d.%d.%d"),   day(localTime),   month(localTime),  year(localTime));
+    else if (!strncmp_P(text,PSTR("#DDMM"),5)) sprintf_P(text, zero?PSTR("%02d.%02d")     :PSTR("%d.%d"),      day(localTime),   month(localTime));
+    else if (!strncmp_P(text,PSTR("#MMDD"),5)) sprintf_P(text, zero?PSTR("%02d/%02d")     :PSTR("%d/%d"),      month(localTime), day(localTime));
+    else if (!strncmp_P(text,PSTR("#TIME"),5)) sprintf_P(text, zero?PSTR("%02d:%02d%s")   :PSTR("%2d:%02d%s"), AmPmHour,         minute(localTime), sec);
+    else if (!strncmp_P(text,PSTR("#HHMM"),5)) sprintf_P(text, zero?PSTR("%02d:%02d")     :PSTR("%d:%02d"),    AmPmHour,         minute(localTime));
+    else if (!strncmp_P(text,PSTR("#HH"),3))   sprintf_P(text, zero?PSTR("%02d")          :PSTR("%d"),         AmPmHour);
+    else if (!strncmp_P(text,PSTR("#MM"),3))   sprintf_P(text, zero?PSTR("%02d")          :PSTR("%d"),        minute(localTime));
     else if (!strncmp_P(text,PSTR("#FPS"),4)) sprintf_P(text, PSTR("%2d"), (int) strip.getFps());                     // WLEDMM
     else if (!strncmp_P(text,PSTR("#POW"),4)) sprintf_P(text, PSTR("%3.2fA"), float(strip.currentMilliamps)/1000.0f); // WLEDMM
-    else sprintf_P(text, PSTR("%s %d, %d %2d:%02d%s"), monthShortStr(month(localTime)), day(localTime), year(localTime), AmPmHour, minute(localTime), sec);
+    else sprintf_P(text, PSTR("%s %d, %d %d:%02d%s"), monthShortStr(month(localTime)), day(localTime), year(localTime), AmPmHour, minute(localTime), sec);
   }
   const int numberOfLetters = strlen(text);
 
@@ -6360,11 +6454,6 @@ uint16_t mode_2DWaverly(void) {
 static const char _data_FX_MODE_2DWAVERLY[] PROGMEM = "Waverly ☾@Amplification,Sensitivity,,,,No Clouds,Sound Pressure,AGC debug;;!;2v;ix=64,si=0"; // Beatsin
 
 #endif // WLED_DISABLE_2D
-
-// float version of map()
-static float mapf(float x, float in_min, float in_max, float out_min, float out_max){
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
 
 // Gravity struct requited for GRAV* effects
 typedef struct Gravity {
@@ -7848,25 +7937,40 @@ uint16_t mode_2Dsoap() {
   const uint32_t mov = MIN(cols,rows)*(SEGMENT.speed+2)/2;
   const uint8_t  smoothness = MIN(250,SEGMENT.intensity); // limit as >250 produces very little changes
 
-  //WLEDMM: changing noise calculation for SuperSync to make it deterministic using strip.now
   // init
   if (SEGENV.call == 0) {
-    random16_set_seed(535);
+    if (true) {//WLEDMM SuperSync
+      random16_set_seed(535);
+      USER_PRINTF("SuperSync\n");
+    }
     SEGMENT.setUpLeds();
     *noise32_x = random16();
     *noise32_y = random16();
     *noise32_z = random16();
+  } else {
+    if (!true) { //WLEDMM SuperSync
+      *noise32_x += mov;
+      *noise32_y += mov;
+      *noise32_z += mov;
+    }
   }
 
-  uint32_t noise32_x_MM = *noise32_x + mov * strip.now / 100; //10 fps (original 20-40 fps, depending on realized fps)
-  uint32_t noise32_y_MM = *noise32_y + mov * strip.now / 100;
-  uint32_t noise32_z_MM = *noise32_z + mov * strip.now / 100;
+  //WLEDMM: changing noise calculation for SuperSync to make it deterministic using strip.now
+  uint32_t noise32_x_MM = *noise32_x;
+  uint32_t noise32_y_MM = *noise32_y;
+  uint32_t noise32_z_MM = *noise32_z;
+
+  if (true) { //WLEDMM SuperSync
+    noise32_x_MM = *noise32_x + mov * strip.now / 100; //10 fps (original 20-40 fps, depending on realized fps)
+    noise32_y_MM = *noise32_y + mov * strip.now / 100;
+    noise32_z_MM = *noise32_z + mov * strip.now / 100;
+  }
 
   for (int i = 0; i < cols; i++) {
     int32_t ioffset = scale32_x * (i - cols / 2);
     for (int j = 0; j < rows; j++) {
       int32_t joffset = scale32_y * (j - rows / 2);
-      uint8_t data = inoise16(noise32_x_MM + ioffset, noise32_y_MM + joffset, noise32_z_MM) >> 8;
+      uint8_t data = inoise16(noise32_x_MM + ioffset, noise32_y_MM + joffset, noise32_z_MM) >> 8; //WLEDMM SuperSync
       noise3d[XY(i,j)] = scale8(noise3d[XY(i,j)], smoothness) + scale8(data, 255 - smoothness);
     }
   }
@@ -7963,26 +8067,46 @@ uint16_t mode_2Doctopus() {
   uint8_t *offsX = reinterpret_cast<uint8_t*>(SEGENV.data + dataSize);
   uint8_t *offsY = reinterpret_cast<uint8_t*>(SEGENV.data + dataSize + 1);
 
+  //WLEDMM add SuperSync control
+  uint16_t xStart, xEnd, yStart, yEnd;
+  if (SEGMENT.check1) { //Master (sync on needs to show the whole effect, children only their first panel)
+    xStart = strip.panel[0].xOffset;
+    xEnd = strip.panel[0].xOffset + strip.panel[0].width;
+    yStart = strip.panel[0].yOffset;
+    yEnd = strip.panel[0].yOffset + strip.panel[0].height;
+  }
+  else  {
+    xStart = 0;
+    xEnd = cols;
+    yStart = 0;
+    yEnd = rows;
+  }
+
   // re-init if SEGMENT dimensions or offset changed
   if (SEGENV.call == 0 || SEGENV.aux0 != cols || SEGENV.aux1 != rows || SEGMENT.custom1 != *offsX || SEGMENT.custom2 != *offsY) {
-    // SEGENV.step = 0; // t
+    if (!true) //WLEDMM SuperSync
+      SEGENV.step = 0; // t
     SEGENV.aux0 = cols;
     SEGENV.aux1 = rows;
     *offsX = SEGMENT.custom1;
     *offsY = SEGMENT.custom2;
     const uint8_t C_X = cols / 2 + (SEGMENT.custom1 - 128)*cols/255;
     const uint8_t C_Y = rows / 2 + (SEGMENT.custom2 - 128)*rows/255;
-    for (int x = 0; x < cols; x++) {
-      for (int y = 0; y < rows; y++) {
+    for (int x = xStart; x < xEnd; x++) {
+      for (int y = yStart; y < yEnd; y++) {
         rMap[XY(x, y)].angle = 40.7436f * atan2f(y - C_Y, x - C_X); // avoid 128*atan2()/PI
         rMap[XY(x, y)].radius = hypotf(x - C_X, y - C_Y) * mapp; //thanks Sutaburosu
       }
     }
   }
 
-  SEGENV.step = (strip.now / 40) * (SEGMENT.speed / 32 + 1);  // 1-4 range WLEDMM no += because of SuperSync (40fps effect)
-  for (int x = 0; x < cols; x++) {
-    for (int y = 0; y < rows; y++) {
+  if (true) // WLEDMM SuperSync
+    SEGENV.step = strip.now * (SEGMENT.speed / 32 + 1) / 25;  // WLEDMM 40fps
+  else
+    SEGENV.step += SEGMENT.speed / 32 + 1;  // 1-4 range
+
+  for (int x = xStart; x < xEnd; x++) {
+    for (int y = yStart; y < yEnd; y++) {
       byte angle = rMap[XY(x,y)].angle;
       byte radius = rMap[XY(x,y)].radius;
       //CRGB c = CHSV(SEGENV.step / 2 - radius, 255, sin8(sin8((angle * 4 - radius) / 4 + SEGENV.step) + radius - SEGENV.step * 2 + angle * (SEGMENT.custom3/3+1)));
@@ -7994,7 +8118,7 @@ uint16_t mode_2Doctopus() {
   }
   return FRAMETIME;
 }
-static const char _data_FX_MODE_2DOCTOPUS[] PROGMEM = "Octopus@!,,Offset X,Offset Y,Legs;;!;2;";
+static const char _data_FX_MODE_2DOCTOPUS[] PROGMEM = "Octopus@!,,Offset X,Offset Y,Legs, SuperSync;;!;2;";
 
 
 //Waving Cell
@@ -8176,6 +8300,7 @@ void WS2812FX::setupEffectData() {
   // --- 1D audio effects ---
   addEffect(FX_MODE_PIXELS, &mode_pixels, _data_FX_MODE_PIXELS);
   addEffect(FX_MODE_PIXELWAVE, &mode_pixelwave, _data_FX_MODE_PIXELWAVE);
+  addEffect(FX_MODE_PARTYJERK, &mode_partyjerk, _data_FX_MODE_PARTYJERK);
   addEffect(FX_MODE_JUGGLES, &mode_juggles, _data_FX_MODE_JUGGLES);
   addEffect(FX_MODE_MATRIPIX, &mode_matripix, _data_FX_MODE_MATRIPIX);
   addEffect(FX_MODE_GRAVIMETER, &mode_gravimeter, _data_FX_MODE_GRAVIMETER);

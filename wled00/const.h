@@ -132,10 +132,10 @@
 #define USERMOD_ID_SD_CARD               37     //Usermod "usermod_sd_card.h"
 #define USERMOD_ID_PWM_OUTPUTS           38     //Usermod "usermod_pwm_outputs.h
 #define USERMOD_ID_SHT                   39     //Usermod "usermod_sht.h
-#define USERMOD_ID_SHT_2                   71     //Usermod "usermod_sht.h
-
-#define USERMOD_ID_KLIPPER               40     // Usermod Klipper percentage
-#define USERMOD_ID_INA                   70     //Usermod "usermod_sht.h
+#define USERMOD_ID_KLIPPER               40     //Usermod Klipper percentage
+#define USERMOD_ID_WIREGUARD             41     //Usermod "wireguard.h"
+#define USERMOD_ID_INTERNAL_TEMPERATURE  42     //Usermod "usermod_internal_temperature.h"
+#define USERMOD_ID_LDR_DUSK_DAWN         43     //Usermod "usermod_LDR_Dusk_Dawn_v2.h"
 //WLEDMM
 #define USERMOD_ID_MCUTEMP               89     //Usermod "usermod_v2_artifx.h"
 #define USERMOD_ID_ARTIFX                90     //Usermod "usermod_v2_artifx.h"
@@ -276,7 +276,7 @@
 #define BTN_TYPE_ANALOG_INVERTED  8
 
 //Ethernet board types
-#define WLED_NUM_ETH_TYPES       11
+#define WLED_NUM_ETH_TYPES       12 //WLEDMM +1 for Olimex ESP32-Gateway
 
 #define WLED_ETH_NONE             0
 #define WLED_ETH_WT32_ETH01       1
@@ -289,6 +289,7 @@
 #define WLED_ETH_QUINLED_OCTA     8
 #define WLED_ETH_ABCWLEDV43ETH    9
 #define WLED_ETH_SERG74          10
+#define WLED_ETH_OLIMEX_GTW      11
 
 //Hue error codes
 #define HUE_ERROR_INACTIVE        0
@@ -349,7 +350,8 @@
 #define NL_MODE_SUN               3            //Sunrise/sunset. Target brightness is set immediately, then Sunrise effect is started. Max 60 min.
 
 
-#define NTP_PACKET_SIZE 48
+#define NTP_PACKET_SIZE 48       // size of NTP recive buffer
+#define NTP_MIN_PACKET_SIZE 48   // min expected size - NTP v4 allows for "extended information" appended to the standard fields
 
 //maximum number of rendered LEDs - this does not have to match max. physical LEDs, e.g. if there are virtual busses
 #ifndef MAX_LEDS
@@ -380,7 +382,11 @@
 #ifdef ESP8266
 #define SETTINGS_STACK_BUF_SIZE 2048
 #else
-#define SETTINGS_STACK_BUF_SIZE 3792   // WLEDMM added 696 bytes of margin (was 3096) for audioreactive UI
+  #if !defined(USERMOD_AUDIOREACTIVE)
+    #define SETTINGS_STACK_BUF_SIZE 3834   // WLEDMM added 696+32 bytes of margin (was 3096)
+  #else
+    #define SETTINGS_STACK_BUF_SIZE 3904   // WLEDMM more buffer for audioreactive UI (add '-D CONFIG_ASYNC_TCP_TASK_STACK_SIZE=9216' to your build_flags)
+  #endif
 #endif
 
 #ifdef WLED_USE_ETHERNET
@@ -421,12 +427,12 @@
  #if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
   #if defined(ARDUINO_ARCH_ESP32S2) || defined(ARDUINO_ARCH_ESP32C3)
     #if defined(ARDUINO_ARCH_ESP32C3)
-      #define JSON_BUFFER_SIZE 46000 // WLEDMM - max 46KB on -C3 with PSRAM (chip has 400kb RAM)
+      #define JSON_BUFFER_SIZE 44000 // WLEDMM - max 44KB on -C3 with PSRAM (chip has 400kb RAM)
     #else
-      #define JSON_BUFFER_SIZE 36000 // WLEDMM - max 36KB on -S2 with PSRAM (chip has 320kb RAM)
+      #define JSON_BUFFER_SIZE 32000 // WLEDMM - max 32KB on -S2 with PSRAM (chip has 320kb RAM)
     #endif
   #else
-  #define JSON_BUFFER_SIZE 56000 // WLEDMM (was 60000) slightly reduced to avoid build error "region dram0_0_seg overflowed"
+  #define JSON_BUFFER_SIZE 54000 // WLEDMM (was 60000) slightly reduced to avoid build error "region dram0_0_seg overflowed"
   #endif
  #else
   #define JSON_BUFFER_SIZE 24576

@@ -3,12 +3,30 @@
 /*
    Main sketch, global variable declarations
    @title WLED project sketch
-   @version 0.14.0-b2
+   @version 0.14.0-b2X
    @author Christian Schwinne
  */
 
 // version code in format yymmddb (b = daily build)
-#define VERSION 2310030
+#define VERSION 2312120
+
+//WLEDMM + Moustachauve/Wled-Native 
+// You can define custom product info from build flags.
+// This is useful to allow API consumer to identify what type of WLED version
+// they are interacting with. Be aware that changing this might cause some third
+// party API consumers to consider this as a non-WLED device since the values
+// returned by the API and by MQTT will no longer be default. However, most
+// third party only uses mDNS to validate, so this is generally fine to change.
+// For example, Home Assistant will still work fine even with this value changed.
+// Use like this:
+// -D WLED_BRAND="\"Custom Brand\""
+// -D WLED_PRODUCT_NAME="\"Custom Product\""
+#ifndef WLED_BRAND
+  #define WLED_BRAND "WLED"
+#endif
+#ifndef WLED_PRODUCT_NAME
+  #define WLED_PRODUCT_NAME "MoonModules"
+#endif
 
 //uncomment this if you have a "my_config.h" file you'd like to use
 //#define WLED_USE_MY_CONFIG
@@ -652,10 +670,11 @@ WLED_GLOBAL String escapedMac;
 WLED_GLOBAL DNSServer dnsServer;
 
 // network time
+#define NTP_NEVER 999000000L
 WLED_GLOBAL bool ntpConnected _INIT(false);
 WLED_GLOBAL time_t localTime _INIT(0);
-WLED_GLOBAL unsigned long ntpLastSyncTime _INIT(999000000L);
-WLED_GLOBAL unsigned long ntpPacketSentTime _INIT(999000000L);
+WLED_GLOBAL unsigned long ntpLastSyncTime _INIT(NTP_NEVER);
+WLED_GLOBAL unsigned long ntpPacketSentTime _INIT(NTP_NEVER);
 WLED_GLOBAL IPAddress ntpServerIP;
 WLED_GLOBAL uint16_t ntpLocalPort _INIT(2390);
 WLED_GLOBAL uint16_t rolloverMillis _INIT(0);
